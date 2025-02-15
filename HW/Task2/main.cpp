@@ -3,26 +3,20 @@
 #include <mutex>
 #include <string>
 
-std::mutex mtx;
-bool isFree = true;
+std::mutex stationMutex;
 
 void travel(char id, int time) {
     std::cout << "Train " << id << " is traveling for " << time << " seconds." << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(time));
 
-    mtx.lock();
-    while (!isFree) {
-        mtx.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        mtx.lock();
-    }
+    std::cout << "Train " << id << " is waiting for the station to be free." << std::endl;
+    stationMutex.lock();
 
-    isFree = false;
     std::cout << "Train " << id << " has arrived at the station." << std::endl;
 
     std::string command;
     while (true) {
-        std::cout << "Type 'depart' to free the train station for the next train: ";
+        std::cout << "Type 'depart' to allow train " << id << " to leave the station: ";
         std::cin >> command;
         if (command == "depart") {
             break;
@@ -32,28 +26,27 @@ void travel(char id, int time) {
     }
 
     std::cout << "Train " << id << " is departing." << std::endl;
-    isFree = true;
-    mtx.unlock();
+    stationMutex.unlock();
 }
 
 int main() {
-    int time;
+    int timeA, timeB, timeC;
 
     std::cout << "Enter traveling time for train A: ";
-    std::cin >> time;
-    std::thread trainA(travel, 'A', time);
-
+    std::cin >> timeA;
     std::cout << "Enter traveling time for train B: ";
-    std::cin >> time;
-    std::thread trainB(travel, 'B', time);
-
+    std::cin >> timeB;
     std::cout << "Enter traveling time for train C: ";
-    std::cin >> time;
-    std::thread trainC(travel, 'C', time);
+    std::cin >> timeC;
+
+    std::thread trainA(travel, 'A', timeA);
+    std::thread trainB(travel, 'B', timeB);
+    std::thread trainC(travel, 'C', timeC);
 
     trainA.join();
     trainB.join();
     trainC.join();
 
+    std::cout << "All trains have visited the station." << std::endl;
     return 0;
 }
