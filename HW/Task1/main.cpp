@@ -1,45 +1,34 @@
 #include <iostream>
 #include <vector>
-#include <mutex>
 #include <thread>
-#include <map>
+#include <mutex>
+#include <algorithm>
+
 #define DISTANCE 100
 
-
-class Swimmer
-{
+class Swimmer {
 public:
     std::string name;
-    int time = 0;
-    int distance = 0;
     int speed;
+    int time = 0;
     bool finished = false;
 
-    Swimmer(std::string name, int speed) {
-        this->name = name;
-        this->speed = speed;
-    }
-
+    Swimmer(std::string name, int speed) : name(std::move(name)), speed(speed) {}
 };
 
 std::mutex mtx;
+std::vector<Swimmer*> results;
 
-
-void swim(Swimmer& swimmer) {
-    while(swimmer.distance < DISTANCE) {
-        swimmer.distance += swimmer.speed;
-        std::cout << swimmer.name << " reached " << swimmer.distance << "m" << std::endl;
-        swimmer.time += 1;
-        mtx.lock();
-        std::cout << "Swimmer " << swimmer.name << "reached " << swimmer.distance << "m" << std::endl;
-        mtx.unlock();
-
+void swim(Swimmer* swimmer) {
+    while (swimmer->time * swimmer->speed < DISTANCE) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        swimmer->time += 1;
+        std::cout << swimmer->name << " has swum " << swimmer->time * swimmer->speed << " meters\n";
     }
-    swimmer.finished = true;
-}
 
-bool comparator(const Swimmer& a, const Swimmer& b) {
-    return a.time < b.time;
+    mtx.lock();
+    results.push_back(swimmer);
+    mtx.unlock();
 }
 
 int main() {
@@ -47,28 +36,25 @@ int main() {
     std::string name;
     int speed;
 
-    for (int i = 0; i < 5; i++) {
-        std::cout << "Enter swimmer's name and speed in order:" << std::endl;
+    for (int i = 0; i < 6; ++i) {
+        std::cout << "Enter swimmer's name and speed (in meters per second): ";
         std::cin >> name >> speed;
-        swimmers.emplace_back(name, speed); //Clion предложил поменять push_back на emplace_back, очень удобная штука
+        swimmers.push_back(Swimmer(name, speed));
     }
 
     std::vector<std::thread> threads;
 
-    for (Swimmer& swimmer : swimmers) {
-        threads.emplace_back(swim, std::ref(swimmer));
+    for (std::vector<Swimmer>::iterator it = swimmers.begin(); it != swimmers.end(); ++it) {
+        threads.push_back(std::thread(swim, &(*it)));
     }
 
-    for (std::thread& thread : threads) {
-        thread.join();
+    for (std::vector<std::thread>::iterator it = threads.begin(); it != threads.end(); ++it) {
+        it->join();
     }
 
-    std::sort(swimmers.begin(), swimmers.end(), comparator);
-
-
-    std::cout << "\nResults:\n";
-    for (Swimmer& swimmer : swimmers) {
-        std::cout << swimmer.name << ": " << swimmer.time << " seconds" << std::endl;
+    std::cout << "\nFinal Results:\n";
+    for (size_t i = 0; i < results.size(); ++i) {
+        std::cout << i + 1 << ". " << results[i]->name << " - " << results[i]->time << " seconds\n";
     }
 
     return 0;
